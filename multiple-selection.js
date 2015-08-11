@@ -244,6 +244,102 @@
                     });
                 }
             };
+        }])
+        .directive('transformableItem', ['$document', '$timeout', function($document, $timeout) {
+
+            var template = '<div class="transform-helper"> <span class="transform-helper-handle top"></span><span class="transform-helper-handle right"></span><span class="transform-helper-handle bottom"></span><span class="transform-helper-handle left"></span></div>';
+
+            return {
+                scope: true,
+                restrict: 'A',
+                link: function(scope, element, iAttrs, controller) {
+
+                    var HELPER_PADDING = 25;
+                    var helper = angular.element(template);
+                    var lastX = 0;
+                    var lastY = 0;
+                    var handleTop = helper.find('.transform-helper-handle.top');
+
+                    function alignHelper() {
+                        var elementOffset = offset(element[0]);
+                        helper.css({
+                            left: elementOffset.left - HELPER_PADDING + 'px',
+                            top: elementOffset.top - HELPER_PADDING + 'px',
+                            width: element.width() + HELPER_PADDING*2 + 'px',
+                            height: element.height() + HELPER_PADDING*2 + 'px'
+                        });
+                    }
+
+                    function mousedownVertical(event) {
+                        selectedHandle = handleTop;
+                        event.preventDefault();
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        $document.on('mousemove', mousemoveVertical);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    function mousedownHorizontal(event) {
+                        selectedHandle = handleTop;
+                        event.preventDefault();
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        $document.on('mousemove', mousemoveHorizontal);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    function mousemoveVertical(event) {
+                        event.preventDefault();
+                        element.css({
+                            height: element.height() + event.pageY - lastY + 'px'
+                        });
+                        lastY = event.pageY;
+                        scope.$apply();
+                    }
+
+                    function mousemoveHorizontal(event) {
+                        event.preventDefault();
+                        element.css({
+                            width: element.width() + event.pageX - lastX + 'px'
+                        });
+                        lastX = event.pageX;
+                        scope.$apply();
+                    }
+
+                    function mouseup(event) {
+                        event.preventDefault();
+                        $document.off('mousemove', mousemoveVertical);
+                        $document.off('mousemove', mousemoveHorizontal);
+                        $document.off('mouseup', mouseup);
+                    }
+
+                    scope.$watch(function() {
+                       return [
+                           element.css('height'),
+                           element.css('width'),
+                           element.css('top'),
+                           element.css('left')
+                       ];
+                    }, alignHelper, true);
+
+                    scope.$watch(function() {
+                        return element.scope().isSelected;
+                    }, function(newValue, oldValue) {
+                        if(newValue) {
+                            $document.find('body').eq(0).append(helper);
+                            helper.find('.transform-helper-handle.bottom').on('mousedown', mousedownVertical);
+                            helper.find('.transform-helper-handle.right').on('mousedown', mousedownHorizontal);
+                            helper.find('.transform-helper-handle.top').on('mousedown', mousedownVertical);
+                            helper.find('.transform-helper-handle.left').on('mousedown', mousedownHorizontal);
+                        }
+                        else {
+                            helper.remove();
+                        }
+                    });
+
+
+                }
+            }
         }]);
 
 })();

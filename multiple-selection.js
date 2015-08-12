@@ -57,6 +57,7 @@
                             if (event.ctrlKey) {
                                 element.scope().isSelected = false;
                                 element.scope().$apply();
+                                scope.$emit('multipleSelection.deselected', element);
                             }
                         } else {
                             if (!event.ctrlKey) {
@@ -67,12 +68,14 @@
                                             childs[i].scope().isSelecting = false;
                                             childs[i].scope().isSelected = false;
                                             childs[i].scope().$apply();
+                                            scope.$emit('multipleSelection.deselected', childs[i]);
                                         }
                                     }
                                 }
                             }
                             element.scope().isSelected = true;
                             element.scope().$apply();
+                            scope.$emit('multipleSelection.selected', element);
 
                         }
                         event.stopPropagation();
@@ -199,11 +202,18 @@
 
                                 childs[i].scope().isSelected = event.ctrlKey ? !childs[i].scope().isSelected : true;
                                 childs[i].scope().$apply();
+                                if(childs[i].scope().isSelected) {
+                                    scope.$emit('multipleSelection.selected', childs[i]);
+                                }
+                                else {
+                                    scope.$emit('multipleSelection.deselected', childs[i]);
+                                }
                             } else {
                                 if (checkElementHitting(transformBox(childs[i].prop('offsetLeft'), childs[i].prop('offsetTop'), childs[i].prop('offsetLeft') + childs[i].prop('offsetWidth'), childs[i].prop('offsetTop') + childs[i].prop('offsetHeight')), transformBox(event.pageX, event.pageY, event.pageX, event.pageY))) {
                                     if (childs[i].scope().isSelected === false) {
                                         childs[i].scope().isSelected = true;
                                         childs[i].scope().$apply();
+                                        scope.$emit('multipleSelection.selected', childs[i]);
                                     }
                                 }
                             }
@@ -224,6 +234,7 @@
                                     childs[i].scope().isSelecting = false;
                                     childs[i].scope().isSelected = false;
                                     childs[i].scope().$apply();
+                                    scope.$emit('multipleSelection.deselected', childs[i]);
                                 }
                             }
                         }
@@ -243,10 +254,18 @@
                 }
             };
         }])
-        .directive('transformableItem', ['$document', '$timeout', function($document, $timeout) {
 
+
+    /**
+     * Directive to make an object transformable.
+     * If the using element is clicked this directive displays
+     * a ui-element to transform the element.
+     *
+     * Events:
+     * multipleSelection.transformed    Will be called when an element has been rotated or scaled.
+     */
+    angular.module('multipleSelection').directive('transformableItem', ['$document', '$timeout', function($document, $timeout) {
             var template = '<div class="transform-helper"><span class="transform-helper-handle rotate"></span><span class="transform-helper-handle top-right"></span><span class="transform-helper-handle top-left"></span><span class="transform-helper-handle bottom-left"></span><span class="transform-helper-handle bottom-right"></span><span class="transform-helper-handle top"></span><span class="transform-helper-handle right"></span><span class="transform-helper-handle bottom"></span><span class="transform-helper-handle left"></span></div>';
-
             return {
                 scope: true,
                 restrict: 'A',
@@ -262,9 +281,14 @@
                     var lastX = 0;
                     /** Last y-position of the mouse cursor */
                     var lastY = 0;
-                    var rotateRadius;
 
-
+                    /**
+                     * Returns an Object with informations
+                     * about the given DOM-element.
+                     *
+                     * @param element
+                     * @returns {{top: number, right: *, bottom: *, left: number, cx: number, cy: number}}
+                     */
                     function getElementOffset(element) {
                         var doc = element && element.ownerDocument;
                         var documentElem = doc.documentElement;
@@ -295,15 +319,6 @@
                      */
                     function alignHelper() {
                         if(!helper) return;
-                        var box = getElementOffset(element[0]);
-                        if(rotateRadius === undefined) {
-                            if((box.right - box.left) < (box.bottom - box.top)) {
-                                rotateRadius = (box.right - box.left);
-                            }
-                            else {
-                                rotateRadius = (box.bottom - box.top);
-                            }
-                        }
                         var x = parseInt(element.css('left').replace('px', ''));
                         var y = parseInt(element.css('top').replace('px', ''));
                         var degree = getRotationDegrees(element);
@@ -321,6 +336,14 @@
                         });
                     }
 
+                    /**
+                     * Returns the alpha angle
+                     * between the mouse pointer and
+                     * the element.
+                     *
+                     * @param event
+                     * @returns {number}
+                     */
                     function getMouseDegree(event) {
                         var box = getElementOffset(element[0]);
                         var cx = box.left + element.width()/2;
@@ -330,6 +353,12 @@
                         return -1 * (Math.atan2(distanceX, distanceY) * (180 / Math.PI)) -180;
                     }
 
+                    /**
+                     * Returns the rotation of an element in degree.
+                     *
+                     * @param obj
+                     * @returns {number}
+                     */
                     function getRotationDegrees(obj) {
                         var matrix = obj.css("-webkit-transform") ||
                             obj.css("-moz-transform")    ||
@@ -345,26 +374,20 @@
                         return (angle < 0) ? angle + 360 : angle;
                     }
 
+                    /**
+                     * Gets the distance between the given points
+                     */
                     function getDistance(x1, y1, x2, y2) {
                         return Math.sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) );
                     }
 
-                    function mousedownTop(event) {
-                        event.preventDefault();
-                        lastX = event.pageX;
-                        lastY = event.pageY;
-                        scaleFunction = function(event) {
-                            var offset = event.pageY - lastY;
-                            var oldTop = parseInt(element.css('top').replace('px', ''));
-                            element.css({
-                                height: element.height() - offset + 'px',
-                                top: oldTop + offset + 'px'
-                            });
-                        };
-                        $document.on('mousemove', mousemove);
-                        $document.on('mouseup', mouseup);
-                    }
-
+                    /**
+                     * WIll be called when the
+                     * user starts to scale the
+                     * element proportional.
+                     *
+                     * @param event MouseEvent
+                     */
                     function mousedownScale(event) {
                         event.preventDefault();
                         lastX = event.pageX;
@@ -393,48 +416,70 @@
                         $document.on('mouseup', mouseup);
                     }
 
-                    function mousedownLeft(event) {
+                    /**
+                     * WIll be called when the
+                     * user starts to scale the
+                     * element horizontaly.
+                     *
+                     * @param event MouseEvent
+                     */
+                    function mousedownHorizontal(event) {
                         event.preventDefault();
                         lastX = event.pageX;
                         lastY = event.pageY;
+                        var box = getElementOffset(element[0]);
+                        var lastDistance = getDistance(box.cx, box.cy, event.pageX, event.pageY);
+                        var width = element.width();
+                        var oldLeft = parseInt(element.css('left').replace('px', ''));
                         scaleFunction = function(event) {
-                            var offset = event.pageX - lastX;
-                            var oldLeft = parseInt(element.css('left').replace('px', ''));
+                            var newDistance = getDistance(box.cx, box.cy, event.pageX, event.pageY);
+                            var scalar = newDistance / lastDistance;
+                            var newWidth = width * scalar;
+                            var xOffset = newWidth - width;
                             element.css({
-                                width: element.width() - offset + 'px',
-                                left: oldLeft + offset + 'px'
+                                left: oldLeft - xOffset/2 + 'px',
+                                width: newWidth + 'px'
                             });
                         };
                         $document.on('mousemove', mousemove);
                         $document.on('mouseup', mouseup);
                     }
 
-                    function mousedownBottom(event) {
+                    /**
+                     * WIll be called when the
+                     * user starts to scale the
+                     * element vertically.
+                     *
+                     * @param event MouseEvent
+                     */
+                    function mousedownVertical(event) {
                         event.preventDefault();
                         lastX = event.pageX;
                         lastY = event.pageY;
+                        var box = getElementOffset(element[0]);
+                        var lastDistance = getDistance(box.cx, box.cy, event.pageX, event.pageY);
+                        var height = element.height();
+                        var oldTop = parseInt(element.css('top').replace('px', ''));
                         scaleFunction = function(event) {
+                            var newDistance = getDistance(box.cx, box.cy, event.pageX, event.pageY);
+                            var scalar = newDistance / lastDistance;
+                            var newHeight = height * scalar;
+                            var yOffset = newHeight - height;
                             element.css({
-                                height: element.height() + event.pageY - lastY + 'px'
+                                top: oldTop - yOffset/2 + 'px',
+                                height: newHeight + 'px'
                             });
                         };
                         $document.on('mousemove', mousemove);
                         $document.on('mouseup', mouseup);
                     }
 
-                    function mousedownRight(event) {
-                        event.preventDefault();
-                        lastX = event.pageX;
-                        lastY = event.pageY;
-                        scaleFunction = function(event) {
-                            element.css({
-                                width: element.width() + event.pageX - lastX + 'px'
-                            });
-                        };
-                        $document.on('mousemove', mousemove);
-                        $document.on('mouseup', mouseup);
-                    }
-
+                    /**
+                     * Will be called when the user starts to rotate
+                     * the element.
+                     *
+                     * @param event MouseEvent
+                     */
                     function mousedownRotate(event) {
                         event.preventDefault();
                         scaleFunction = function(event) {
@@ -474,6 +519,7 @@
                         helper.removeClass('rotating');
                         $document.off('mousemove', mousemove);
                         $document.off('mouseup', mouseup);
+                        scope.$emit('multipleSelection.transformed', element);
                     }
 
                     /**
@@ -502,15 +548,15 @@
                     scope.$watch(function() { return element.scope().isSelected; }, function(newValue, oldValue) {
                         if(newValue) {
                             $document.find('body').eq(0).append(helper);
-                            helper.find('.transform-helper-handle.bottom').on('mousedown', mousedownBottom);
-                            helper.find('.transform-helper-handle.right').on('mousedown', mousedownRight);
-                            helper.find('.transform-helper-handle.top').on('mousedown', mousedownTop);
-                            helper.find('.transform-helper-handle.left').on('mousedown', mousedownLeft);
-                            helper.find('.transform-helper-handle.rotate').on('mousedown', mousedownRotate);
+                            helper.find('.transform-helper-handle.bottom').on('mousedown', mousedownVertical);
+                            helper.find('.transform-helper-handle.top').on('mousedown', mousedownVertical);
+                            helper.find('.transform-helper-handle.right').on('mousedown', mousedownHorizontal);
+                            helper.find('.transform-helper-handle.left').on('mousedown', mousedownHorizontal);
                             helper.find('.transform-helper-handle.top-right').on('mousedown', mousedownScale);
                             helper.find('.transform-helper-handle.top-left').on('mousedown', mousedownScale);
                             helper.find('.transform-helper-handle.bottom-left').on('mousedown', mousedownScale);
                             helper.find('.transform-helper-handle.bottom-right').on('mousedown', mousedownScale);
+                            helper.find('.transform-helper-handle.rotate').on('mousedown', mousedownRotate);
                             helper.find('.transform-helper-handle.rotate');
                             alignHelper();
                         }

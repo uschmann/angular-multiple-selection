@@ -282,7 +282,9 @@
                             top: box.top + window.scrollY,
                             right: box.right + window.scrollX,
                             bottom: box.bottom + window.scrollY,
-                            left: box.left + window.scrollX
+                            left: box.left + window.scrollX,
+                            cx: box.left + window.scrollX + (box.right - box.left) / 2,
+                            cy: box.top + window.scrollY + (box.bottom - box.top) / 2
                         };
                     }
 
@@ -343,6 +345,9 @@
                         return (angle < 0) ? angle + 360 : angle;
                     }
 
+                    function getDistance(x1, y1, x2, y2) {
+                        return Math.sqrt( (x1-x2)*(x1-x2) + (y1-y2)*(y1-y2) );
+                    }
 
                     function mousedownTop(event) {
                         event.preventDefault();
@@ -360,38 +365,28 @@
                         $document.on('mouseup', mouseup);
                     }
 
-                    function mousedownScaleTop(event) {
+                    function mousedownScale(event) {
                         event.preventDefault();
                         lastX = event.pageX;
                         lastY = event.pageY;
+                        var box = getElementOffset(element[0]);
+                        var lastDistance = getDistance(box.cx, box.cy, event.pageX, event.pageY);
+                        var width = element.width();
+                        var height = element.height();
+                        var oldTop = parseInt(element.css('top').replace('px', ''));
+                        var oldLeft = parseInt(element.css('left').replace('px', ''));
                         scaleFunction = function(event) {
-                            var offset = event.pageY - lastY;
-                            var oldTop = parseInt(element.css('top').replace('px', ''));
-                            var oldLeft = parseInt(element.css('left').replace('px', ''));
+                            var newDistance = getDistance(box.cx, box.cy, event.pageX, event.pageY);
+                            var scalar = newDistance / lastDistance;
+                            var newWidth = width * scalar;
+                            var newHeight = height * scalar;
+                            var yOffset = newHeight - height;
+                            var xOffset = newWidth - width;
                             element.css({
-                                height: element.height() - offset * 2 + 'px',
-                                top: oldTop + offset + 'px',
-                                width: element.width() - offset * 2 + 'px',
-                                left: oldLeft + offset + 'px'
-                            });
-                        };
-                        $document.on('mousemove', mousemove);
-                        $document.on('mouseup', mouseup);
-                    }
-
-                    function mousedownScaleBottom(event) {
-                        event.preventDefault();
-                        lastX = event.pageX;
-                        lastY = event.pageY;
-                        scaleFunction = function(event) {
-                            var offset = event.pageY - lastY;
-                            var oldTop = parseInt(element.css('top').replace('px', ''));
-                            var oldLeft = parseInt(element.css('left').replace('px', ''));
-                            element.css({
-                                height: element.height() + offset * 2 + 'px',
-                                top: oldTop - offset + 'px',
-                                width: element.width() + offset * 2 + 'px',
-                                left: oldLeft + offset - 'px'
+                                top: oldTop - yOffset/2 + 'px',
+                                left: oldLeft - xOffset/2 + 'px',
+                                height: newHeight + 'px',
+                                width: newWidth + 'px'
                             });
                         };
                         $document.on('mousemove', mousemove);
@@ -442,9 +437,6 @@
 
                     function mousedownRotate(event) {
                         event.preventDefault();
-                        lastX = event.pageX;
-                        lastY = event.pageY;
-                        var box = getElementOffset(element[0]);
                         scaleFunction = function(event) {
                             var degree = getMouseDegree(event);
                             element.css({
@@ -454,7 +446,6 @@
                                 '-o-transform': 'rotate(' + degree + 'deg)',
                                 'transform': 'rotate(' + degree + 'deg)'
                             });
-                            alignHelper();
                         };
                         helper.addClass('rotating');
                         $document.on('mousemove', mousemove);
@@ -494,7 +485,12 @@
                            element.css('height'),
                            element.css('width'),
                            element.css('top'),
-                           element.css('left')
+                           element.css('left'),
+                           element.css('-webkit-transform'),
+                           element.css('-moz-transform'),
+                           element.css('-ms-transform'),
+                           element.css('-o-transform'),
+                           element.css('transform')
                        ];
                     }, alignHelper, true);
 
@@ -511,10 +507,10 @@
                             helper.find('.transform-helper-handle.top').on('mousedown', mousedownTop);
                             helper.find('.transform-helper-handle.left').on('mousedown', mousedownLeft);
                             helper.find('.transform-helper-handle.rotate').on('mousedown', mousedownRotate);
-                            helper.find('.transform-helper-handle.top-right').on('mousedown', mousedownScaleTop);
-                            helper.find('.transform-helper-handle.top-left').on('mousedown', mousedownScaleTop);
-                            helper.find('.transform-helper-handle.bottom-left').on('mousedown', mousedownScaleBottom);
-                            helper.find('.transform-helper-handle.bottom-right').on('mousedown', mousedownScaleBottom);
+                            helper.find('.transform-helper-handle.top-right').on('mousedown', mousedownScale);
+                            helper.find('.transform-helper-handle.top-left').on('mousedown', mousedownScale);
+                            helper.find('.transform-helper-handle.bottom-left').on('mousedown', mousedownScale);
+                            helper.find('.transform-helper-handle.bottom-right').on('mousedown', mousedownScale);
                             helper.find('.transform-helper-handle.rotate');
                             alignHelper();
                         }

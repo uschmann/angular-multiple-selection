@@ -181,8 +181,6 @@
                         }
                     }
 
-
-
                     /**
                      * Event on Mouse up
                      * @param  {Event} event
@@ -247,72 +245,203 @@
         }])
         .directive('transformableItem', ['$document', '$timeout', function($document, $timeout) {
 
-            var template = '<div class="transform-helper"> <span class="transform-helper-handle top"></span><span class="transform-helper-handle right"></span><span class="transform-helper-handle bottom"></span><span class="transform-helper-handle left"></span></div>';
+            var template = '<div class="transform-helper"><span class="transform-helper-handle rotate"></span><span class="transform-helper-handle top"></span><span class="transform-helper-handle right"></span><span class="transform-helper-handle bottom"></span><span class="transform-helper-handle left"></span></div>';
 
             return {
                 scope: true,
                 restrict: 'A',
                 link: function(scope, element, iAttrs, controller) {
 
+                    /** Padding for the transform-helper **/
                     var HELPER_PADDING = 25;
+                    /** DOM element for the transformhelper **/
                     var helper = angular.element(template);
+                    var rotationHandle;
+                    /** This method is called when a handler is dragged **/
+                    var scaleFunction = undefined;
+                    /** Last x-position of the mouse cursor */
                     var lastX = 0;
+                    /** Last y-position of the mouse cursor */
                     var lastY = 0;
-                    var handleTop = helper.find('.transform-helper-handle.top');
 
+                    function getElementOffset(element) {
+                        var doc = element && element.ownerDocument;
+                        var documentElem = doc.documentElement;
+                        var box = {
+                                top: 0,
+                                left: 0
+                            };
+
+                        if (typeof element.getBoundingClientRect !== undefined) {
+                            box = element.getBoundingClientRect();
+                            box.top = box.top + window.scrollY;
+                            box.left += window.scrollX;
+                        }
+
+                        return {
+                            top: box.top + window.scrollY,
+                            right: box.right + window.scrollX,
+                            bottom: box.bottom + window.scrollY,
+                            left: box.left + window.scrollX
+                        };
+                    }
+
+                    /**
+                     * Aligns the transformation helper
+                     * according to the elements dimensions
+                     * and position.
+                     */
                     function alignHelper() {
-                        var elementOffset = offset(element[0]);
+                        var box = getElementOffset(element[0]);
                         helper.css({
-                            left: elementOffset.left - HELPER_PADDING + 'px',
-                            top: elementOffset.top - HELPER_PADDING + 'px',
-                            width: element.width() + HELPER_PADDING*2 + 'px',
-                            height: element.height() + HELPER_PADDING*2 + 'px'
+                            left: box.left - HELPER_PADDING + 'px',
+                            top: box.top - HELPER_PADDING + 'px',
+                            width: box.right - box.left + HELPER_PADDING * 2 + 'px',
+                            height: box.bottom - box.top + HELPER_PADDING * 2 + 'px'
                         });
                     }
 
-                    function mousedownVertical(event) {
-                        selectedHandle = handleTop;
+                    function getMouseDegree(event) {
+                        var box = getElementOffset(element[0]);
+                        var cx = box.left + element.width()/2;
+                        var cy = box.top + element.height()/2;
+                        var distanceX = event.pageX - cx;
+                        var distanceY = event.pageY - cy;
+                        console.log((Math.atan2(distanceX, distanceY) * (180 / Math.PI)) - 180);
+                        return -1 * (Math.atan2(distanceX, distanceY) * (180 / Math.PI)) -180;
+                    }
+
+                    function getRotationDegrees(obj) {
+                        var matrix = obj.css("-webkit-transform") ||
+                            obj.css("-moz-transform")    ||
+                            obj.css("-ms-transform")     ||
+                            obj.css("-o-transform")      ||
+                            obj.css("transform");
+                        if(matrix !== 'none') {
+                            var values = matrix.split('(')[1].split(')')[0].split(',');
+                            var a = values[0];
+                            var b = values[1];
+                            var angle = Math.round(Math.atan2(b, a) * (180/Math.PI));
+                        } else { var angle = 0; }
+                        return (angle < 0) ? angle + 360 : angle;
+                    }
+
+
+                    function mousedownTop(event) {
                         event.preventDefault();
                         lastX = event.pageX;
                         lastY = event.pageY;
-                        $document.on('mousemove', mousemoveVertical);
+                        scaleFunction = function(event) {
+                            var offset = event.pageY - lastY;
+                            var oldTop = parseInt(element.css('top').replace('px', ''));
+                            element.css({
+                                height: element.height() - offset + 'px',
+                                top: oldTop + offset + 'px'
+                            });
+                        };
+                        $document.on('mousemove', mousemove);
                         $document.on('mouseup', mouseup);
                     }
 
-                    function mousedownHorizontal(event) {
-                        selectedHandle = handleTop;
+                    function mousedownLeft(event) {
                         event.preventDefault();
                         lastX = event.pageX;
                         lastY = event.pageY;
-                        $document.on('mousemove', mousemoveHorizontal);
+                        scaleFunction = function(event) {
+                            var offset = event.pageX - lastX;
+                            var oldLeft = parseInt(element.css('left').replace('px', ''));
+                            element.css({
+                                width: element.width() - offset + 'px',
+                                left: oldLeft + offset + 'px'
+                            });
+                        };
+                        $document.on('mousemove', mousemove);
                         $document.on('mouseup', mouseup);
                     }
 
-                    function mousemoveVertical(event) {
+                    function mousedownBottom(event) {
                         event.preventDefault();
-                        element.css({
-                            height: element.height() + event.pageY - lastY + 'px'
-                        });
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        scaleFunction = function(event) {
+                            element.css({
+                                height: element.height() + event.pageY - lastY + 'px'
+                            });
+                        };
+                        $document.on('mousemove', mousemove);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    function mousedownRight(event) {
+                        event.preventDefault();
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        scaleFunction = function(event) {
+                            element.css({
+                                width: element.width() + event.pageX - lastX + 'px'
+                            });
+                        };
+                        $document.on('mousemove', mousemove);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    function mousedownRotate(event) {
+                        event.preventDefault();
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        var box = getElementOffset(element[0]);
+                        var rotateRadius = {};
+                        rotateRadius.x = (box.right - box.left);
+                        rotateRadius.y = (box.bottom - box.top);
+                        scaleFunction = function(event) {
+                            var degree = getMouseDegree(event);
+                            var box = getElementOffset(element[0]);
+                            element.css({
+                                '-webkit-transform': 'rotate('+ degree + 'deg)',
+                                '-moz-transform': 'rotate(' + degree + 'deg)',
+                                '-ms-transform': 'rotate(' + degree + 'deg)',
+                                '-o-transform': 'rotate(' + degree + 'deg)',
+                                'transform': 'rotate(' + degree + 'deg)'
+                            });
+
+                            alignHelper();
+                            rotationHandle.css({
+                                left: helper.width() / 2 + Math.cos((degree - 90) * (Math.PI/180)) * rotateRadius.x,
+                                top: helper.height() / 2 + Math.sin((degree - 90) * (Math.PI/180)) * rotateRadius.y
+                            });
+                        };
+                        helper.addClass('rotating');
+                        $document.on('mousemove', mousemove);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    /**
+                     * Will be called when a handler is dragged.
+                     * @param event
+                     */
+                    function mousemove(event) {
+                        event.preventDefault();
+                        scaleFunction(event);
+                        lastX = event.pageX;
                         lastY = event.pageY;
                         scope.$apply();
                     }
 
-                    function mousemoveHorizontal(event) {
-                        event.preventDefault();
-                        element.css({
-                            width: element.width() + event.pageX - lastX + 'px'
-                        });
-                        lastX = event.pageX;
-                        scope.$apply();
-                    }
-
+                    /**
+                     * Will be called when a handler is released.
+                     * @param event Mouseevent
+                     */
                     function mouseup(event) {
                         event.preventDefault();
-                        $document.off('mousemove', mousemoveVertical);
-                        $document.off('mousemove', mousemoveHorizontal);
+                        helper.removeClass('rotating');
+                        $document.off('mousemove', mousemove);
                         $document.off('mouseup', mouseup);
                     }
 
+                    /**
+                     * Watch for changes of the element dimension
+                     * and align the transformation-helper accordingly.
+                     */
                     scope.$watch(function() {
                        return [
                            element.css('height'),
@@ -322,15 +451,21 @@
                        ];
                     }, alignHelper, true);
 
-                    scope.$watch(function() {
-                        return element.scope().isSelected;
-                    }, function(newValue, oldValue) {
+                    /**
+                     * Check if the element is selected and
+                     * display the transformation helper if
+                     * the element is selected.
+                     */
+                    scope.$watch(function() { return element.scope().isSelected; }, function(newValue, oldValue) {
                         if(newValue) {
                             $document.find('body').eq(0).append(helper);
-                            helper.find('.transform-helper-handle.bottom').on('mousedown', mousedownVertical);
-                            helper.find('.transform-helper-handle.right').on('mousedown', mousedownHorizontal);
-                            helper.find('.transform-helper-handle.top').on('mousedown', mousedownVertical);
-                            helper.find('.transform-helper-handle.left').on('mousedown', mousedownHorizontal);
+                            helper.find('.transform-helper-handle.bottom').on('mousedown', mousedownBottom);
+                            helper.find('.transform-helper-handle.right').on('mousedown', mousedownRight);
+                            helper.find('.transform-helper-handle.top').on('mousedown', mousedownTop);
+                            helper.find('.transform-helper-handle.left').on('mousedown', mousedownLeft);
+                            helper.find('.transform-helper-handle.rotate').on('mousedown', mousedownRotate);
+                            rotationHandle = helper.find('.transform-helper-handle.rotate');
+                            alignHelper();
                         }
                         else {
                             helper.remove();

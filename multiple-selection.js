@@ -245,7 +245,7 @@
         }])
         .directive('transformableItem', ['$document', '$timeout', function($document, $timeout) {
 
-            var template = '<div class="transform-helper"><span class="transform-helper-handle rotate"></span><span class="transform-helper-handle top"></span><span class="transform-helper-handle right"></span><span class="transform-helper-handle bottom"></span><span class="transform-helper-handle left"></span></div>';
+            var template = '<div class="transform-helper"><span class="transform-helper-handle rotate"></span><span class="transform-helper-handle top-right"></span><span class="transform-helper-handle top-left"></span><span class="transform-helper-handle bottom-left"></span><span class="transform-helper-handle bottom-right"></span><span class="transform-helper-handle top"></span><span class="transform-helper-handle right"></span><span class="transform-helper-handle bottom"></span><span class="transform-helper-handle left"></span></div>';
 
             return {
                 scope: true,
@@ -253,16 +253,17 @@
                 link: function(scope, element, iAttrs, controller) {
 
                     /** Padding for the transform-helper **/
-                    var HELPER_PADDING = 25;
+                    var HELPER_PADDING = 40;
                     /** DOM element for the transformhelper **/
                     var helper = angular.element(template);
-                    var rotationHandle;
                     /** This method is called when a handler is dragged **/
                     var scaleFunction = undefined;
                     /** Last x-position of the mouse cursor */
                     var lastX = 0;
                     /** Last y-position of the mouse cursor */
                     var lastY = 0;
+                    var rotateRadius;
+
 
                     function getElementOffset(element) {
                         var doc = element && element.ownerDocument;
@@ -271,7 +272,6 @@
                                 top: 0,
                                 left: 0
                             };
-
                         if (typeof element.getBoundingClientRect !== undefined) {
                             box = element.getBoundingClientRect();
                             box.top = box.top + window.scrollY;
@@ -292,12 +292,30 @@
                      * and position.
                      */
                     function alignHelper() {
+                        if(!helper) return;
                         var box = getElementOffset(element[0]);
+                        if(rotateRadius === undefined) {
+                            if((box.right - box.left) < (box.bottom - box.top)) {
+                                rotateRadius = (box.right - box.left);
+                            }
+                            else {
+                                rotateRadius = (box.bottom - box.top);
+                            }
+                        }
+                        var x = parseInt(element.css('left').replace('px', ''));
+                        var y = parseInt(element.css('top').replace('px', ''));
+                        var degree = getRotationDegrees(element);
                         helper.css({
-                            left: box.left - HELPER_PADDING + 'px',
-                            top: box.top - HELPER_PADDING + 'px',
-                            width: box.right - box.left + HELPER_PADDING * 2 + 'px',
-                            height: box.bottom - box.top + HELPER_PADDING * 2 + 'px'
+                            left: x - HELPER_PADDING + 'px',
+                            top: y - HELPER_PADDING + 'px',
+                            width: element.width() + HELPER_PADDING * 2 + 'px',
+                            height: element.height() + HELPER_PADDING * 2 + 'px',
+                            'z-index': element.css('zindex') + 1,
+                            '-webkit-transform': 'rotate('+ degree + 'deg)',
+                            '-moz-transform': 'rotate(' + degree + 'deg)',
+                            '-ms-transform': 'rotate(' + degree + 'deg)',
+                            '-o-transform': 'rotate(' + degree + 'deg)',
+                            'transform': 'rotate(' + degree + 'deg)'
                         });
                     }
 
@@ -307,7 +325,6 @@
                         var cy = box.top + element.height()/2;
                         var distanceX = event.pageX - cx;
                         var distanceY = event.pageY - cy;
-                        console.log((Math.atan2(distanceX, distanceY) * (180 / Math.PI)) - 180);
                         return -1 * (Math.atan2(distanceX, distanceY) * (180 / Math.PI)) -180;
                     }
 
@@ -337,6 +354,44 @@
                             element.css({
                                 height: element.height() - offset + 'px',
                                 top: oldTop + offset + 'px'
+                            });
+                        };
+                        $document.on('mousemove', mousemove);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    function mousedownScaleTop(event) {
+                        event.preventDefault();
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        scaleFunction = function(event) {
+                            var offset = event.pageY - lastY;
+                            var oldTop = parseInt(element.css('top').replace('px', ''));
+                            var oldLeft = parseInt(element.css('left').replace('px', ''));
+                            element.css({
+                                height: element.height() - offset * 2 + 'px',
+                                top: oldTop + offset + 'px',
+                                width: element.width() - offset * 2 + 'px',
+                                left: oldLeft + offset + 'px'
+                            });
+                        };
+                        $document.on('mousemove', mousemove);
+                        $document.on('mouseup', mouseup);
+                    }
+
+                    function mousedownScaleBottom(event) {
+                        event.preventDefault();
+                        lastX = event.pageX;
+                        lastY = event.pageY;
+                        scaleFunction = function(event) {
+                            var offset = event.pageY - lastY;
+                            var oldTop = parseInt(element.css('top').replace('px', ''));
+                            var oldLeft = parseInt(element.css('left').replace('px', ''));
+                            element.css({
+                                height: element.height() + offset * 2 + 'px',
+                                top: oldTop - offset + 'px',
+                                width: element.width() + offset * 2 + 'px',
+                                left: oldLeft + offset - 'px'
                             });
                         };
                         $document.on('mousemove', mousemove);
@@ -390,12 +445,8 @@
                         lastX = event.pageX;
                         lastY = event.pageY;
                         var box = getElementOffset(element[0]);
-                        var rotateRadius = {};
-                        rotateRadius.x = (box.right - box.left);
-                        rotateRadius.y = (box.bottom - box.top);
                         scaleFunction = function(event) {
                             var degree = getMouseDegree(event);
-                            var box = getElementOffset(element[0]);
                             element.css({
                                 '-webkit-transform': 'rotate('+ degree + 'deg)',
                                 '-moz-transform': 'rotate(' + degree + 'deg)',
@@ -403,12 +454,7 @@
                                 '-o-transform': 'rotate(' + degree + 'deg)',
                                 'transform': 'rotate(' + degree + 'deg)'
                             });
-
                             alignHelper();
-                            rotationHandle.css({
-                                left: helper.width() / 2 + Math.cos((degree - 90) * (Math.PI/180)) * rotateRadius.x,
-                                top: helper.height() / 2 + Math.sin((degree - 90) * (Math.PI/180)) * rotateRadius.y
-                            });
                         };
                         helper.addClass('rotating');
                         $document.on('mousemove', mousemove);
@@ -433,6 +479,7 @@
                      */
                     function mouseup(event) {
                         event.preventDefault();
+                        rotateRadius = undefined;
                         helper.removeClass('rotating');
                         $document.off('mousemove', mousemove);
                         $document.off('mouseup', mouseup);
@@ -464,7 +511,11 @@
                             helper.find('.transform-helper-handle.top').on('mousedown', mousedownTop);
                             helper.find('.transform-helper-handle.left').on('mousedown', mousedownLeft);
                             helper.find('.transform-helper-handle.rotate').on('mousedown', mousedownRotate);
-                            rotationHandle = helper.find('.transform-helper-handle.rotate');
+                            helper.find('.transform-helper-handle.top-right').on('mousedown', mousedownScaleTop);
+                            helper.find('.transform-helper-handle.top-left').on('mousedown', mousedownScaleTop);
+                            helper.find('.transform-helper-handle.bottom-left').on('mousedown', mousedownScaleBottom);
+                            helper.find('.transform-helper-handle.bottom-right').on('mousedown', mousedownScaleBottom);
+                            helper.find('.transform-helper-handle.rotate');
                             alignHelper();
                         }
                         else {

@@ -570,4 +570,49 @@
             }
         }]);
 
+        angular.module('multipleSelection').directive('contenteditable', [function() {
+            return {
+                restrict: "A",
+                require: ['ngModel', '?^multipleDragItem'],
+                link: function (scope, element, attrs, ctrls) {
+                    var ngModel = ctrls[0];
+                    var draggController = ctrls[1];
+
+                    function read() {
+                        ngModel.$setViewValue(element.html());
+                    }
+
+                    ngModel.$render = function () {
+                        element.html(ngModel.$viewValue || "");
+                    };
+
+                    element.on('dblclick', function() {
+                        if(draggController) {
+                            draggController.setIsDraggable(false);
+                        }
+                        element.focus();
+                    });
+
+                    element.bind("keyup change", function () {
+                        scope.$apply(read);
+                    });
+
+                    element.bind("blur", function () {
+                        if(draggController) {
+                            draggController.setIsDraggable(true);
+                        }
+                    });
+
+                    scope.$watch(function() { return element.scope().isSelected; }, function(newValue) {
+                        if(!newValue) {
+                            if(draggController) {
+                                draggController.setIsDraggable(true);
+                            }
+                            element.blur();
+                        }
+                    });
+                }
+            }
+        }]);
+
 })();
